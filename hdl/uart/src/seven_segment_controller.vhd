@@ -31,11 +31,12 @@ architecture behavioral of seven_segment_controller is
     -- Current character to display
     signal current_char : std_logic_vector(7 downto 0);
     
-    -- Seven segment patterns (active low)
+    -- Seven segment patterns (active low) - Updated based on reference image
     function ascii_to_7seg(ascii : std_logic_vector(7 downto 0)) return std_logic_vector is
         variable segments : std_logic_vector(6 downto 0);
     begin
         case ascii is
+            -- Numbers
             when x"30" => segments := "1000000"; -- 0
             when x"31" => segments := "1111001"; -- 1
             when x"32" => segments := "0100100"; -- 2
@@ -46,26 +47,66 @@ architecture behavioral of seven_segment_controller is
             when x"37" => segments := "1111000"; -- 7
             when x"38" => segments := "0000000"; -- 8
             when x"39" => segments := "0010000"; -- 9
-            when x"41" | x"61" => segments := "0001000"; -- A/a
-            when x"42" | x"62" => segments := "0000011"; -- B/b
-            when x"43" | x"63" => segments := "1000110"; -- C/c
-            when x"44" | x"64" => segments := "0100001"; -- D/d
-            when x"45" | x"65" => segments := "0000110"; -- E/e
-            when x"46" | x"66" => segments := "0001110"; -- F/f
-            when x"47" | x"67" => segments := "0010000"; -- G/g (same as 9)
-            when x"48" | x"68" => segments := "0001011"; -- H/h
-            when x"49" | x"69" => segments := "1111001"; -- I/i (same as 1)
-            when x"4A" | x"6A" => segments := "1110001"; -- J/j
-            when x"4C" | x"6C" => segments := "1000111"; -- L/l
-            when x"4E" | x"6E" => segments := "0001001"; -- N/n
-            when x"4F" | x"6F" => segments := "1000000"; -- O/o (same as 0)
-            when x"50" | x"70" => segments := "0001100"; -- P/p
-            when x"52" | x"72" => segments := "0001111"; -- R/r
-            when x"53" | x"73" => segments := "0010010"; -- S/s (same as 5)
-            when x"54" | x"74" => segments := "0000111"; -- T/t
-            when x"55" | x"75" => segments := "1000001"; -- U/u
-            when x"59" | x"79" => segments := "0010001"; -- Y/y
+            
+            -- Uppercase letters
+            when x"41" => segments := "0001000"; -- A
+            when x"42" => segments := "0000011"; -- B
+            when x"43" => segments := "1000110"; -- C
+            when x"44" => segments := "0100001"; -- D
+            when x"45" => segments := "0000110"; -- E
+            when x"46" => segments := "0001110"; -- F
+            when x"47" => segments := "1000010"; -- G
+            when x"48" => segments := "0001011"; -- H
+            when x"49" => segments := "1111001"; -- I
+            when x"4A" => segments := "1110001"; -- J
+            when x"4B" => segments := "0001011"; -- K (same as H)
+            when x"4C" => segments := "1000111"; -- L
+            when x"4D" => segments := "0001000"; -- M (same as A)
+            when x"4E" => segments := "1001000"; -- N
+            when x"4F" => segments := "1000000"; -- O
+            when x"50" => segments := "0001100"; -- P
+            when x"51" => segments := "0011000"; -- Q
+            when x"52" => segments := "1001111"; -- R
+            when x"53" => segments := "0010010"; -- S
+            when x"54" => segments := "0000111"; -- T
+            when x"55" => segments := "1000001"; -- U
+            when x"56" => segments := "1000001"; -- V (same as U)
+            when x"57" => segments := "1000001"; -- W (same as U)
+            when x"58" => segments := "0001011"; -- X (same as H)
+            when x"59" => segments := "0010001"; -- Y
+            when x"5A" => segments := "0100100"; -- Z (same as 2)
+            
+            -- Lowercase letters
+            when x"61" => segments := "0100000"; -- a
+            when x"62" => segments := "0000011"; -- b
+            when x"63" => segments := "0100111"; -- c
+            when x"64" => segments := "0100001"; -- d
+            when x"65" => segments := "0000110"; -- e
+            when x"66" => segments := "0001110"; -- f
+            when x"67" => segments := "1000010"; -- g
+            when x"68" => segments := "0001011"; -- h
+            when x"69" => segments := "1111001"; -- i
+            when x"6A" => segments := "1110001"; -- j
+            when x"6B" => segments := "0001011"; -- k (same as h)
+            when x"6C" => segments := "1000111"; -- l
+            when x"6D" => segments := "0101010"; -- m
+            when x"6E" => segments := "0101011"; -- n
+            when x"6F" => segments := "0100011"; -- o
+            when x"70" => segments := "0001100"; -- p
+            when x"71" => segments := "0011000"; -- q
+            when x"72" => segments := "0101111"; -- r
+            when x"73" => segments := "0010010"; -- s
+            when x"74" => segments := "0000111"; -- t
+            when x"75" => segments := "1100011"; -- u
+            when x"76" => segments := "1100011"; -- v (same as u)
+            when x"77" => segments := "1100011"; -- w (same as u)
+            when x"78" => segments := "0001011"; -- x (same as h)
+            when x"79" => segments := "0010001"; -- y
+            when x"7A" => segments := "0100100"; -- z (same as 2)
+            
+            -- Special characters
             when x"20" => segments := "1111111"; -- Space (all off)
+            when x"2D" => segments := "0111111"; -- - (dash)
             when others => segments := "0111111"; -- - (dash for unknown)
         end case;
         return segments;
