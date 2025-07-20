@@ -1,12 +1,12 @@
 ----------------------------------------------------------------------
--- UART Echo Top Module for Basys3
--- Receives characters via UART, echoes them back and displays on 7-segment
+-- UART Echo Top Module with FIFO Buffers for Basys3
+-- Includes RX and TX FIFO buffers for better performance
 -- 100MHz clock, 115200 baud rate
 ----------------------------------------------------------------------
 
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
+library IEEE;
+use IEEE.std_logic_1164.all;
+use IEEE.numeric_std.all;
 
 entity top is
     port (
@@ -23,7 +23,7 @@ entity top is
         an          : out std_logic_vector(3 downto 0);  -- Digit anodes
         
         -- Status LEDs
-        led         : out std_logic_vector(3 downto 0)   -- Status indicators
+        led         : out std_logic_vector(15 downto 0)  -- Extended status indicators
     );
 end top;
 
@@ -31,33 +31,40 @@ architecture behavioral of top is
     
     -- Clock divider for baud rate (100MHz / 115200 = 868.05 ≈ 868)
     constant CLKS_PER_BIT : integer := 868;
+    constant RX_FIFO_DEPTH : integer := 32;
+    constant TX_FIFO_DEPTH : integer := 32;
     
     -- Reset synchronizer
     signal reset_sync : std_logic_vector(2 downto 0) := "111";
     signal reset_n    : std_logic;
     
-    -- UART RX signals
-    signal rx_data_valid : std_logic;
-    signal rx_data       : std_logic_vector(7 downto 0);
+    -- UART RX with FIFO signals
+    signal rx_rd_en     : std_logic;
+    signal rx_data      : std_logic_vector(7 downto 0);
+    signal rx_empty     : std_logic;
+    signal rx_full      : std_logic;
+    signal rx_count     : std_logic_vector(4 downto 0);
+    signal rx_error     : std_logic;
     
-    -- UART TX signals
-    signal tx_start      : std_logic;
-    signal tx_data       : std_logic_vector(7 downto 0);
-    signal tx_busy       : std_logic;
-    signal tx_done       : std_logic;
+    -- UART TX with FIFO signals
+    signal tx_wr_en     : std_logic;
+    signal tx_data      : std_logic_vector(7 downto 0);
+    signal tx_full      : std_logic;
+    signal tx_empty     : std_logic;
+    signal tx_count     : std_logic_vector(4 downto 0);
+    signal tx_busy      : std_logic;
     
-    -- Echo state machine
-    type echo_state_t is (IDLE, WAIT_TX_READY, START_TX, WAIT_TX_DONE);
-    signal echo_state : echo_state_t := IDLE;
+    -- Echo control
+    signal echo_enable  : std_logic := '1';
+    signal char_received: std_logic;
     
     -- Status signals
-    signal rx_activity   : std_logic := '0';
-    signal tx_activity   : std_logic := '0';
-    signal error_flag    : std_logic := '0';
-    signal heartbeat     : std_logic := '0';
-    
-    -- Heartbeat counter
+    signal heartbeat    : std_logic := '0';
     signal heartbeat_counter : unsigned(25 downto 0) := (others => '0');
+    
+    -- Display control
+    signal display_char : std_logic_vector(7 downto 0);
+    signal display_valid: std_logic;
     
 begin
     
@@ -71,32 +78,40 @@ begin
     
     reset_n <= reset_sync(2);
     
-    -- UART RX instance
-    uart_rx_inst : entity work.uart_rx
+    -- UART RX with FIFO instance
+    uart_rx_fifo_inst : entity work.uart_rx_with_fifo
         generic map (
-            g_CLKS_PER_BIT => CLKS_PER_BIT
+            g_CLKS_PER_BIT => CLKS_PER_BIT,
+            FIFO_DEPTH     => RX_FIFO_DEPTH
         )
         port map (
             i_clk       => clk,
             i_rst       => not reset_n,
             i_rx_serial => RsRx,
-            o_rx_dv     => rx_data_valid,
-            o_rx_byte   => rx_data
+            i_rd_en     => rx_rd_en,
+            o_rx_data   => rx_data,
+            o_rx_empty  => rx_empty,
+            o_rx_full   => rx_full,
+            o_rx_count  => rx_count,
+            o_rx_error  => rx_error
         );
     
-    -- UART TX instance
-    uart_tx_inst : entity work.uart_tx
+    -- UART TX with FIFO instance
+    uart_tx_fifo_inst : entity work.uart_tx_with_fifo
         generic map (
-            g_CLKS_PER_BIT => CLKS_PER_BIT
+            g_CLKS_PER_BIT => CLKS_PER_BIT,
+            FIFO_DEPTH     => TX_FIFO_DEPTH
         )
         port map (
             i_clk      => clk,
             i_rst      => not reset_n,
-            i_tx_start => tx_start,
+            i_wr_en    => tx_wr_en,
             i_tx_data  => tx_data,
+            o_tx_full  => tx_full,
+            o_tx_empty => tx_empty,
+            o_tx_count => tx_count,
             o_tx_line  => RsTx,
-            o_tx_busy  => tx_busy,
-            o_tx_done  => tx_done
+            o_tx_busy  => tx_busy
         );
     
     -- Seven Segment Display Controller
@@ -104,75 +119,43 @@ begin
         port map (
             i_clk        => clk,
             i_rst        => not reset_n,
-            i_ascii_char => rx_data,
-            i_char_valid => rx_data_valid,
+            i_ascii_char => display_char,
+            i_char_valid => display_valid,
             o_segments   => seg,
             o_anodes     => an
         );
     
-    -- Echo state machine
-    echo_process : process(clk, reset_n)
+    -- Echo and display control process
+    echo_control_process : process(clk, reset_n)
     begin
         if reset_n = '0' then
-            echo_state <= IDLE;
-            tx_start <= '0';
+            rx_rd_en <= '0';
+            tx_wr_en <= '0';
             tx_data <= (others => '0');
-            tx_activity <= '0';
+            display_char <= (others => '0');
+            display_valid <= '0';
+            char_received <= '0';
             
         elsif rising_edge(clk) then
             
             -- Default assignments
-            tx_start <= '0';
-            tx_activity <= tx_busy;
+            rx_rd_en <= '0';
+            tx_wr_en <= '0';
+            display_valid <= '0';
+            char_received <= '0';
             
-            case echo_state is
+            -- Check if there's data in RX FIFO
+            if rx_empty = '0' then
+                rx_rd_en <= '1';
+                char_received <= '1';
+                display_char <= rx_data;
+                display_valid <= '1';
                 
-                when IDLE =>
-                    if rx_data_valid = '1' then
-                        tx_data <= rx_data;
-                        if tx_busy = '0' then
-                            echo_state <= START_TX;
-                        else
-                            echo_state <= WAIT_TX_READY;
-                        end if;
-                    end if;
-                    
-                when WAIT_TX_READY =>
-                    if tx_busy = '0' then
-                        echo_state <= START_TX;
-                    end if;
-                    
-                when START_TX =>
-                    tx_start <= '1';
-                    echo_state <= WAIT_TX_DONE;
-                    
-                when WAIT_TX_DONE =>
-                    if tx_done = '1' then
-                        echo_state <= IDLE;
-                    end if;
-                    
-                when others =>
-                    echo_state <= IDLE;
-                    
-            end case;
-        end if;
-    end process;
-    
-    -- RX activity indicator
-    rx_activity_process : process(clk, reset_n)
-        variable activity_counter : unsigned(23 downto 0) := (others => '0');
-    begin
-        if reset_n = '0' then
-            rx_activity <= '0';
-            activity_counter := (others => '0');
-        elsif rising_edge(clk) then
-            if rx_data_valid = '1' then
-                rx_activity <= '1';
-                activity_counter := (others => '0');
-            elsif activity_counter = x"FFFFFF" then
-                rx_activity <= '0';
-            else
-                activity_counter := activity_counter + 1;
+                -- Echo the character if echo is enabled and TX FIFO not full
+                if echo_enable = '1' and tx_full = '0' then
+                    tx_wr_en <= '1';
+                    tx_data <= rx_data;
+                end if;
             end if;
         end if;
     end process;
@@ -192,10 +175,20 @@ begin
         end if;
     end process;
     
-    -- Status LED assignments
-    led(0) <= rx_activity;     -- RX activity
-    led(1) <= tx_activity;     -- TX activity
-    led(2) <= error_flag;      -- Error indicator (currently unused)
-    led(3) <= heartbeat;       -- Heartbeat
+    -- Status LED assignments (16 LEDs total)
+    led(0) <= not rx_empty;             -- RX FIFO has data
+    led(1) <= not tx_empty;             -- TX FIFO has data
+    led(2) <= rx_full;                  -- RX FIFO full
+    led(3) <= tx_full;                  -- TX FIFO full
+    led(4) <= tx_busy;                  -- TX busy
+    led(5) <= rx_error;                 -- RX overflow error
+    led(6) <= char_received;            -- Character received indicator
+    led(7) <= heartbeat;                -- Heartbeat
+    
+    -- RX FIFO count display (5 bits)
+    led(12 downto 8) <= rx_count;
+    
+    -- TX FIFO count display (3 MSBs)
+    led(15 downto 13) <= tx_count(2 downto 0);
     
 end behavioral;

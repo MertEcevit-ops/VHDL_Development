@@ -1,115 +1,128 @@
 ----------------------------------------------------------------------
--- UART Receiver Module
--- 8 data bits, 1 start bit, 1 stop bit, no parity
--- Improved version with reset support
+-- UART Receiver with FIFO Buffer
+-- Includes RX FIFO for buffering received data
 ----------------------------------------------------------------------
 
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
+library IEEE;
+use IEEE.std_logic_1164.all;
+use IEEE.numeric_std.all;
 
-entity uart_rx is
+entity uart_rx_with_fifo is
     generic (
-        g_CLKS_PER_BIT : integer := 217  -- Clock cycles per bit
+        g_CLKS_PER_BIT : integer := 868;   -- Clock cycles per bit
+        FIFO_DEPTH     : integer := 16     -- RX FIFO depth
     );
     port (
         i_clk       : in  std_logic;
         i_rst       : in  std_logic;
         i_rx_serial : in  std_logic;
-        o_rx_dv     : out std_logic;
-        o_rx_byte   : out std_logic_vector(7 downto 0)
+        
+        -- FIFO read interface
+        i_rd_en     : in  std_logic;
+        o_rx_data   : out std_logic_vector(7 downto 0);
+        o_rx_empty  : out std_logic;
+        o_rx_full   : out std_logic;
+        o_rx_count  : out std_logic_vector(4 downto 0);
+        
+        -- Status
+        o_rx_error  : out std_logic
     );
-end uart_rx;
+end uart_rx_with_fifo;
 
-architecture behavioral of UART_RX is
+architecture behavioral of uart_rx_with_fifo is
     
-    -- State machine definition
-    type uart_rx_state_t is (IDLE, START_BIT, DATA_BITS, STOP_BIT, CLEANUP);
-    signal state : uart_rx_state_t := IDLE;
+    -- UART RX signals
+    signal uart_rx_dv   : std_logic;
+    signal uart_rx_byte : std_logic_vector(7 downto 0);
     
-    -- Internal signals
-    signal clk_counter : integer range 0 to g_CLKS_PER_BIT-1 := 0;
-    signal bit_counter : integer range 0 to 7 := 0;
-    signal rx_byte_reg : std_logic_vector(7 downto 0) := (others => '0');
-    signal rx_dv_reg   : std_logic := '0';
+    -- FIFO signals
+    signal fifo_wr_en   : std_logic;
+    signal fifo_full    : std_logic;
+    signal rx_overflow  : std_logic := '0';
+    
+    -- Components
+    component uart_rx is
+        generic (
+            g_CLKS_PER_BIT : integer := 217
+        );
+        port (
+            i_clk       : in  std_logic;
+            i_rst       : in  std_logic;
+            i_rx_serial : in  std_logic;
+            o_rx_dv     : out std_logic;
+            o_rx_byte   : out std_logic_vector(7 downto 0)
+        );
+    end component;
+    
+    component fifo_buffer is
+        generic (
+            FIFO_DEPTH : integer := 16;
+            DATA_WIDTH : integer := 8
+        );
+        port (
+            clk        : in  std_logic;
+            rst        : in  std_logic;
+            wr_en      : in  std_logic;
+            wr_data    : in  std_logic_vector(7 downto 0);
+            rd_en      : in  std_logic;
+            rd_data    : out std_logic_vector(7 downto 0);
+            full       : out std_logic;
+            empty      : out std_logic;
+            almost_full: open;
+            count      : out std_logic_vector(4 downto 0)
+        );
+    end component;
     
 begin
     
-    -- Main UART RX process
-    uart_rx_process : process(i_clk, i_rst)
+    -- UART RX instance
+    uart_rx_inst : uart_rx
+        generic map (
+            g_CLKS_PER_BIT => g_CLKS_PER_BIT
+        )
+        port map (
+            i_clk       => i_clk,
+            i_rst       => i_rst,
+            i_rx_serial => i_rx_serial,
+            o_rx_dv     => uart_rx_dv,
+            o_rx_byte   => uart_rx_byte
+        );
+    
+    -- RX FIFO instance
+    rx_fifo_inst : fifo_buffer
+        generic map (
+            FIFO_DEPTH => FIFO_DEPTH,
+            DATA_WIDTH => 8
+        )
+        port map (
+            clk     => i_clk,
+            rst     => i_rst,
+            wr_en   => fifo_wr_en,
+            wr_data => uart_rx_byte,
+            rd_en   => i_rd_en,
+            rd_data => o_rx_data,
+            full    => fifo_full,
+            empty   => o_rx_empty,
+            count   => o_rx_count
+        );
+    
+    -- FIFO write control
+    fifo_wr_en <= uart_rx_dv and not fifo_full;
+    
+    -- Overflow detection
+    overflow_process : process(i_clk, i_rst)
     begin
         if i_rst = '1' then
-            -- Reset all signals
-            state <= IDLE;
-            clk_counter <= 0;
-            bit_counter <= 0;
-            rx_byte_reg <= (others => '0');
-            rx_dv_reg <= '0';
-            
+            rx_overflow <= '0';
         elsif rising_edge(i_clk) then
-            
-            -- Default assignment
-            rx_dv_reg <= '0';
-            
-            case state is
-                
-                when IDLE =>
-                    clk_counter <= 0;
-                    bit_counter <= 0;
-                    
-                    if i_rx_serial = '0' then  -- Start bit detected
-                        state <= START_BIT;
-                    end if;
-                    
-                when START_BIT =>
-                    -- Check middle of start bit to make sure it's still low
-                    if clk_counter = (g_CLKS_PER_BIT-1)/2 then
-                        if i_rx_serial = '0' then
-                            clk_counter <= 0;  -- Reset counter
-                            state <= DATA_BITS;
-                        else
-                            state <= IDLE;  -- False start
-                        end if;
-                    else
-                        clk_counter <= clk_counter + 1;
-                    end if;
-                    
-                when DATA_BITS =>
-                    if clk_counter < g_CLKS_PER_BIT-1 then
-                        clk_counter <= clk_counter + 1;
-                    else
-                        clk_counter <= 0;
-                        rx_byte_reg(bit_counter) <= i_rx_serial;
-                        
-                        if bit_counter < 7 then
-                            bit_counter <= bit_counter + 1;
-                        else
-                            bit_counter <= 0;
-                            state <= STOP_BIT;
-                        end if;
-                    end if;
-                    
-                when STOP_BIT =>
-                    if clk_counter < g_CLKS_PER_BIT-1 then
-                        clk_counter <= clk_counter + 1;
-                    else
-                        rx_dv_reg <= '1';
-                        clk_counter <= 0;
-                        state <= CLEANUP;
-                    end if;
-                    
-                when CLEANUP =>
-                    state <= IDLE;
-                    
-                when others =>
-                    state <= IDLE;
-                    
-            end case;
+            if uart_rx_dv = '1' and fifo_full = '1' then
+                rx_overflow <= '1';
+            end if;
         end if;
     end process;
     
     -- Output assignments
-    o_rx_dv <= rx_dv_reg;
-    o_rx_byte <= rx_byte_reg;
+    o_rx_full <= fifo_full;
+    o_rx_error <= rx_overflow;
     
 end behavioral;
