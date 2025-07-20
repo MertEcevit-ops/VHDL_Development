@@ -7,7 +7,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 
-entity uart_rx_with_fifo is
+entity uart_rx is
     generic (
         g_CLKS_PER_BIT : integer := 868;   -- Clock cycles per bit
         FIFO_DEPTH     : integer := 16     -- RX FIFO depth
@@ -27,9 +27,9 @@ entity uart_rx_with_fifo is
         -- Status
         o_rx_error  : out std_logic
     );
-end uart_rx_with_fifo;
+end uart_rx;
 
-architecture behavioral of uart_rx_with_fifo is
+architecture behavioral of uart_rx is
     
     -- UART RX signals
     signal uart_rx_dv   : std_logic;
@@ -68,7 +68,6 @@ architecture behavioral of uart_rx_with_fifo is
             rd_data    : out std_logic_vector(7 downto 0);
             full       : out std_logic;
             empty      : out std_logic;
-            almost_full: open;
             count      : out std_logic_vector(4 downto 0)
         );
     end component;
@@ -95,15 +94,15 @@ begin
             DATA_WIDTH => 8
         )
         port map (
-            clk     => i_clk,
-            rst     => i_rst,
-            wr_en   => fifo_wr_en,
-            wr_data => uart_rx_byte,
-            rd_en   => i_rd_en,
-            rd_data => o_rx_data,
-            full    => fifo_full,
-            empty   => o_rx_empty,
-            count   => o_rx_count
+            clk        => i_clk,
+            rst        => i_rst,
+            wr_en      => fifo_wr_en,
+            wr_data    => uart_rx_byte,
+            rd_en      => i_rd_en,
+            rd_data    => o_rx_data,
+            full       => fifo_full,
+            empty      => o_rx_empty,
+            count      => o_rx_count
         );
     
     -- FIFO write control

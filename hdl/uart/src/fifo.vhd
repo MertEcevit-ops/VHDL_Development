@@ -4,9 +4,9 @@
 -- Configurable depth and data width
 ----------------------------------------------------------------------
 
-library IEEE;
-use IEEE.std_logic_1164.all;
-use IEEE.numeric_std.all;
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 entity fifo_buffer is
     generic (
@@ -28,7 +28,6 @@ entity fifo_buffer is
         -- Status flags
         full       : out std_logic;
         empty      : out std_logic;
-        almost_full: out std_logic;
         count      : out std_logic_vector(4 downto 0)  -- Assumes max 32 depth
     );
 end fifo_buffer;
@@ -126,7 +125,6 @@ begin
     -- Output assignments
     full <= full_flag;
     empty <= empty_flag;
-    almost_full <= '1' when fifo_count >= FIFO_DEPTH-2 else '0';
     count <= std_logic_vector(resize(fifo_count, 5));
     
 end behavioral;

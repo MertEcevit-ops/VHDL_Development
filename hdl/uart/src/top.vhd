@@ -79,7 +79,7 @@ begin
     reset_n <= reset_sync(2);
     
     -- UART RX with FIFO instance
-    uart_rx_fifo_inst : entity work.uart_rx_with_fifo
+    uart_rx_fifo_inst : entity work.uart_rx
         generic map (
             g_CLKS_PER_BIT => CLKS_PER_BIT,
             FIFO_DEPTH     => RX_FIFO_DEPTH
@@ -97,7 +97,7 @@ begin
         );
     
     -- UART TX with FIFO instance
-    uart_tx_fifo_inst : entity work.uart_tx_with_fifo
+    uart_tx_fifo_inst : entity work.uart_tx
         generic map (
             g_CLKS_PER_BIT => CLKS_PER_BIT,
             FIFO_DEPTH     => TX_FIFO_DEPTH

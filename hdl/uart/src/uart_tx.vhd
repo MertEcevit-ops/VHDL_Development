@@ -7,7 +7,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 
-entity uart_tx_with_fifo is
+entity uart_tx is
     generic (
         g_CLKS_PER_BIT : integer := 868;   -- Clock cycles per bit
         FIFO_DEPTH     : integer := 16     -- TX FIFO depth
@@ -27,9 +27,9 @@ entity uart_tx_with_fifo is
         o_tx_line   : out std_logic;
         o_tx_busy   : out std_logic
     );
-end uart_tx_with_fifo;
+end uart_tx;
 
-architecture behavioral of uart_tx_with_fifo is
+architecture behavioral of uart_tx is
     
     -- UART TX signals
     signal uart_tx_start : std_logic;
@@ -75,7 +75,6 @@ architecture behavioral of uart_tx_with_fifo is
             rd_data    : out std_logic_vector(7 downto 0);
             full       : out std_logic;
             empty      : out std_logic;
-            almost_full: open;
             count      : out std_logic_vector(4 downto 0)
         );
     end component;
@@ -104,15 +103,15 @@ begin
             DATA_WIDTH => 8
         )
         port map (
-            clk     => i_clk,
-            rst     => i_rst,
-            wr_en   => i_wr_en,
-            wr_data => i_tx_data,
-            rd_en   => fifo_rd_en,
-            rd_data => uart_tx_data,
-            full    => o_tx_full,
-            empty   => fifo_empty,
-            count   => o_tx_count
+            clk        => i_clk,
+            rst        => i_rst,
+            wr_en      => i_wr_en,
+            wr_data    => i_tx_data,
+            rd_en      => fifo_rd_en,
+            rd_data    => uart_tx_data,
+            full       => o_tx_full,
+            empty      => fifo_empty,
+            count      => o_tx_count
         );
     
     -- TX control state machine
