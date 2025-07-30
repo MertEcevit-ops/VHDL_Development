@@ -8,7 +8,7 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-entity fifo_buffer is
+entity fifo is
     generic (
         FIFO_DEPTH : integer := 16;    -- FIFO depth (must be power of 2)
         DATA_WIDTH : integer := 8      -- Data width in bits
@@ -30,9 +30,9 @@ entity fifo_buffer is
         empty      : out std_logic;
         count      : out std_logic_vector(4 downto 0)  -- Assumes max 32 depth
     );
-end fifo_buffer;
+end fifo;
 
-architecture behavioral of fifo_buffer is
+architecture behavioral of fifo is
     
     -- Calculate address width based on depth
     function clog2(depth : integer) return integer is
@@ -61,7 +61,17 @@ architecture behavioral of fifo_buffer is
     signal full_flag  : std_logic := '0';
     signal empty_flag : std_logic := '1';
     
+    -- Control signals for cleaner case statement
+    signal wr_valid : std_logic;
+    signal rd_valid : std_logic;
+    signal control_sig : std_logic_vector(1 downto 0);
+    
 begin
+    
+    -- Valid write/read signals
+    wr_valid <= wr_en and not full_flag;
+    rd_valid <= rd_en and not empty_flag;
+    control_sig <= wr_valid & rd_valid;
     
     -- FIFO write process
     write_process : process(clk, rst)
@@ -70,7 +80,7 @@ begin
             wr_ptr <= (others => '0');
             fifo_mem <= (others => (others => '0'));
         elsif rising_edge(clk) then
-            if wr_en = '1' and full_flag = '0' then
+            if wr_valid = '1' then
                 fifo_mem(to_integer(wr_ptr)) <= wr_data;
                 if wr_ptr = FIFO_DEPTH-1 then
                     wr_ptr <= (others => '0');
@@ -88,7 +98,7 @@ begin
             rd_ptr <= (others => '0');
             rd_data <= (others => '0');
         elsif rising_edge(clk) then
-            if rd_en = '1' and empty_flag = '0' then
+            if rd_valid = '1' then
                 rd_data <= fifo_mem(to_integer(rd_ptr));
                 if rd_ptr = FIFO_DEPTH-1 then
                     rd_ptr <= (others => '0');
@@ -105,14 +115,14 @@ begin
         if rst = '1' then
             fifo_count <= (others => '0');
         elsif rising_edge(clk) then
-            case (wr_en and not full_flag) & (rd_en and not empty_flag) is
+            case control_sig is
                 when "10" => -- Write only
                     fifo_count <= fifo_count + 1;
                 when "01" => -- Read only
                     fifo_count <= fifo_count - 1;
-                when "11" => -- Read and write
+                when "11" => -- Read and write simultaneously
                     fifo_count <= fifo_count;
-                when others => -- No operation
+                when others => -- No operation ("00")
                     fifo_count <= fifo_count;
             end case;
         end if;
