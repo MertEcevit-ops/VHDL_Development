@@ -52,11 +52,13 @@ architecture behavioral of top is
     signal tx_full      : std_logic;
     signal tx_empty     : std_logic;
     signal tx_count     : std_logic_vector(4 downto 0);
-    signal tx_busy      : std_logic;
+    signal tx_active    : std_logic;
+    signal tx_done      : std_logic;
     
     -- Echo control
     signal echo_enable  : std_logic := '1';
     signal char_received: std_logic;
+    signal rx_data_delayed : std_logic_vector(7 downto 0);
     
     -- Status signals
     signal heartbeat    : std_logic := '0';
@@ -103,15 +105,16 @@ begin
             FIFO_DEPTH     => TX_FIFO_DEPTH
         )
         port map (
-            i_clk      => clk,
-            i_rst      => not reset_n,
-            i_wr_en    => tx_wr_en,
-            i_tx_data  => tx_data,
-            o_tx_full  => tx_full,
-            o_tx_empty => tx_empty,
-            o_tx_count => tx_count,
-            o_tx_line  => RsTx,
-            o_tx_busy  => tx_busy
+            i_clk       => clk,
+            i_rst       => not reset_n,
+            i_wr_en     => tx_wr_en,
+            i_tx_data   => tx_data,
+            o_tx_full   => tx_full,
+            o_tx_empty  => tx_empty,
+            o_tx_count  => tx_count,
+            o_tx_serial => RsTx,
+            o_tx_active => tx_active,
+            o_tx_done   => tx_done
         );
     
     -- Seven Segment Display Controller
@@ -135,6 +138,7 @@ begin
             display_char <= (others => '0');
             display_valid <= '0';
             char_received <= '0';
+            rx_data_delayed <= (others => '0');
             
         elsif rising_edge(clk) then
             
@@ -144,10 +148,15 @@ begin
             display_valid <= '0';
             char_received <= '0';
             
-            -- Check if there's data in RX FIFO
+            -- Check if there's data in RX FIFO and read it
             if rx_empty = '0' then
                 rx_rd_en <= '1';
                 char_received <= '1';
+            end if;
+            
+            -- Handle the received data (delayed by one clock cycle due to FIFO read)
+            if rx_rd_en = '1' then
+                rx_data_delayed <= rx_data;
                 display_char <= rx_data;
                 display_valid <= '1';
                 
@@ -180,7 +189,7 @@ begin
     led(1) <= not tx_empty;             -- TX FIFO has data
     led(2) <= rx_full;                  -- RX FIFO full
     led(3) <= tx_full;                  -- TX FIFO full
-    led(4) <= tx_busy;                  -- TX busy
+    led(4) <= tx_active;                -- TX active (transmitting)
     led(5) <= rx_error;                 -- RX overflow error
     led(6) <= char_received;            -- Character received indicator
     led(7) <= heartbeat;                -- Heartbeat
