@@ -62,13 +62,21 @@ architecture behavioral of vga_pattern is
     signal gradient_red     : std_logic_vector(COLOR_WIDTH-1 downto 0);
     signal gradient_green   : std_logic_vector(COLOR_WIDTH-1 downto 0);
     
+    -- Convert integers to unsigned for bit indexing
+    signal pixel_x_u : unsigned(9 downto 0);  -- 10 bits for up to 1024
+    signal pixel_y_u : unsigned(9 downto 0);  -- 10 bits for up to 1024
+    
 begin
+    
+    -- Convert integer coordinates to unsigned
+    pixel_x_u <= to_unsigned(pixel_x, 10);
+    pixel_y_u <= to_unsigned(pixel_y, 10);
     
     -- Calculate helper signals
     bar_width <= H_ACTIVE / 8;
     
-    -- Checkerboard pattern (32x32 pixel squares)
-    checkerboard_bit <= pixel_x(5) xor pixel_y(5);
+    -- Checkerboard pattern (32x32 pixel squares) - Fixed bit indexing
+    checkerboard_bit <= pixel_x_u(5) xor pixel_y_u(5);
     
     -- Color bar selection
     color_bar_select <= 0 when pixel_x < bar_width*1 else

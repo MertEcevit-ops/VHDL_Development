@@ -1,4 +1,8 @@
-
+----------------------------------------------------------------------
+-- Simplified VGA Clock Generator
+-- Uses simple clock division for 25MHz pixel clock
+-- Optimized for reduced LUT usage
+----------------------------------------------------------------------
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -28,87 +32,51 @@ end vga_clock;
 
 architecture behavioral of vga_clock is
     
-    -- Calculate clock division ratio
-    constant DIVISOR        : integer := SYS_CLK_FREQ / PIXEL_CLK_FREQ;
-    constant HALF_DIVISOR   : integer := DIVISOR / 2;
-    constant QUARTER_DIVISOR: integer := DIVISOR / 4;
-    
-    -- Counter for clock division
-    signal clk_counter      : integer range 0 to DIVISOR-1 := 0;
-    
-    -- Generated clock signals
+    -- Simple division for 100MHz -> 25MHz (divide by 4)
+    signal clk_div_counter  : unsigned(1 downto 0) := "00";
     signal pixel_clk_reg    : std_logic := '0';
     signal pixel_clk_x2_reg : std_logic := '0';
     
-    -- Lock detection
-    signal lock_counter     : integer range 0 to 1023 := 0;
+    -- Simple lock counter
+    signal lock_counter     : unsigned(7 downto 0) := (others => '0');
     signal clk_locked_reg   : std_logic := '0';
-    
-    -- Clock enable signals for different phases
-    signal clk_en_pixel     : std_logic := '0';
-    signal clk_en_pixel_x2  : std_logic := '0';
     
 begin
     
-    -- Main clock division process
+    -- Simple clock division process
     clock_division_process : process(sys_clk)
     begin
         if rising_edge(sys_clk) then
             if reset = '1' then
-                clk_counter <= 0;
+                clk_div_counter <= "00";
                 pixel_clk_reg <= '0';
                 pixel_clk_x2_reg <= '0';
-                clk_en_pixel <= '0';
-                clk_en_pixel_x2 <= '0';
                 
             else
-                -- Default enable signals
-                clk_en_pixel <= '0';
-                clk_en_pixel_x2 <= '0';
+                -- Increment counter
+                clk_div_counter <= clk_div_counter + 1;
                 
-                -- Counter increment
-                if clk_counter = DIVISOR-1 then
-                    clk_counter <= 0;
-                else
-                    clk_counter <= clk_counter + 1;
-                end if;
+                -- Generate 25MHz pixel clock (divide by 4)
+                pixel_clk_reg <= clk_div_counter(1);
                 
-                -- Generate pixel clock (divide by DIVISOR)
-                if clk_counter = HALF_DIVISOR-1 then
-                    pixel_clk_reg <= '1';
-                    clk_en_pixel <= '1';
-                elsif clk_counter = DIVISOR-1 then
-                    pixel_clk_reg <= '0';
-                end if;
-                
-                -- Generate 2x pixel clock (divide by DIVISOR/2)
-                if clk_counter = QUARTER_DIVISOR-1 then
-                    pixel_clk_x2_reg <= '1';
-                    clk_en_pixel_x2 <= '1';
-                elsif clk_counter = QUARTER_DIVISOR + HALF_DIVISOR-1 then
-                    pixel_clk_x2_reg <= '0';
-                elsif clk_counter = (3*QUARTER_DIVISOR)-1 then
-                    pixel_clk_x2_reg <= '1';
-                    clk_en_pixel_x2 <= '1';
-                elsif clk_counter = DIVISOR-1 then
-                    pixel_clk_x2_reg <= '0';
-                end if;
+                -- Generate 50MHz pixel clock x2 (divide by 2)
+                pixel_clk_x2_reg <= clk_div_counter(0);
                 
             end if;
         end if;
     end process clock_division_process;
     
-    -- Clock lock detection process
+    -- Simple lock detection process
     lock_detection_process : process(sys_clk)
     begin
         if rising_edge(sys_clk) then
             if reset = '1' then
-                lock_counter <= 0;
+                lock_counter <= (others => '0');
                 clk_locked_reg <= '0';
                 
             else
                 -- Count stable clock cycles
-                if lock_counter = 1023 then
+                if lock_counter = 255 then
                     clk_locked_reg <= '1';
                 else
                     lock_counter <= lock_counter + 1;
@@ -122,10 +90,5 @@ begin
     pixel_clk <= pixel_clk_reg;
     pixel_clk_x2 <= pixel_clk_x2_reg;
     clk_locked <= clk_locked_reg;
-    
-    -- Synthesis attributes for better clock generation
-    attribute KEEP : string;
-    attribute KEEP of pixel_clk_reg : signal is "TRUE";
-    attribute KEEP of pixel_clk_x2_reg : signal is "TRUE";
     
 end behavioral;

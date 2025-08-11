@@ -1,7 +1,7 @@
 ----------------------------------------------------------------------
--- VGA Text Display Generator
--- Character-based display system with UART integration
--- Supports 80x30 text display with cursor and scrolling
+-- Simplified VGA Text Display Generator
+-- Reduced memory usage with smaller font ROM
+-- Supports basic ASCII characters only
 ----------------------------------------------------------------------
 
 library IEEE;
@@ -58,37 +58,39 @@ architecture behavioral of vga_pattern_txt is
     -- Color width for each channel
     constant COLOR_WIDTH : integer := COLOR_DEPTH/3;
     
-    -- Character buffer size
-    constant BUFFER_SIZE : integer := TEXT_COLS * TEXT_ROWS;
+    -- Reduced character buffer size (40x15 instead of 80x30)
+    constant BUFFER_COLS : integer := 40;
+    constant BUFFER_ROWS : integer := 15;
+    constant BUFFER_SIZE : integer := BUFFER_COLS * BUFFER_ROWS;
     
-    -- Font ROM constants
-    constant FONT_ROM_SIZE : integer := 128 * CHAR_HEIGHT; -- 128 ASCII chars
+    -- Simplified font ROM (only essential characters)
+    constant FONT_ROM_SIZE : integer := 96 * 8; -- 96 chars, 8 rows each
     
     -- Types
     type char_buffer_type is array (0 to BUFFER_SIZE-1) of std_logic_vector(7 downto 0);
-    type font_rom_type is array (0 to FONT_ROM_SIZE-1) of std_logic_vector(CHAR_WIDTH-1 downto 0);
+    type font_rom_type is array (0 to FONT_ROM_SIZE-1) of std_logic_vector(7 downto 0);
     
     -- Character buffer (initialized with spaces)
     signal char_buffer : char_buffer_type := (others => x"20");
     
     -- Cursor position
-    signal cursor_x : integer range 0 to TEXT_COLS-1 := 0;
-    signal cursor_y : integer range 0 to TEXT_ROWS-1 := 0;
+    signal cursor_x : integer range 0 to BUFFER_COLS-1 := 0;
+    signal cursor_y : integer range 0 to BUFFER_ROWS-1 := 0;
     
     -- Current display position
-    signal char_col : integer range 0 to TEXT_COLS-1;
-    signal char_row : integer range 0 to TEXT_ROWS-1;
+    signal char_col : integer range 0 to BUFFER_COLS-1;
+    signal char_row : integer range 0 to BUFFER_ROWS-1;
     signal pixel_in_char_x : integer range 0 to CHAR_WIDTH-1;
-    signal pixel_in_char_y : integer range 0 to CHAR_HEIGHT-1;
+    signal pixel_in_char_y : integer range 0 to 7; -- Reduced from 16 to 8
     
     -- Font data
     signal current_char : std_logic_vector(7 downto 0);
     signal font_addr : integer range 0 to FONT_ROM_SIZE-1;
-    signal font_data : std_logic_vector(CHAR_WIDTH-1 downto 0);
+    signal font_data : std_logic_vector(7 downto 0);
     signal pixel_bit : std_logic;
     
     -- Cursor blinking
-    signal cursor_counter : integer range 0 to CURSOR_BLINK_PERIOD-1 := 0;
+    signal cursor_counter : unsigned(23 downto 0) := (others => '0'); -- Reduced counter
     signal cursor_blink : std_logic := '0';
     signal cursor_at_position : std_logic;
     
@@ -97,42 +99,36 @@ architecture behavioral of vga_pattern_txt is
     signal pixel_bit_reg : std_logic;
     signal cursor_at_position_reg : std_logic;
     
-    -- Simple 8x16 Font ROM (basic ASCII characters)
+    -- Simplified 8x8 Font ROM (basic ASCII characters 32-127)
     function init_font_rom return font_rom_type is
         variable rom : font_rom_type := (others => (others => '0'));
     begin
-        -- Space (0x20)
-        for i in 0 to CHAR_HEIGHT-1 loop
-            rom(32 * CHAR_HEIGHT + i) := "00000000";
-        end loop;
+        -- Space (0x20 = 32)
+        rom(0)  := "00000000";
+        rom(1)  := "00000000";
+        rom(2)  := "00000000";
+        rom(3)  := "00000000";
+        rom(4)  := "00000000";
+        rom(5)  := "00000000";
+        rom(6)  := "00000000";
+        rom(7)  := "00000000";
         
-        -- 'A' (0x41)
-        rom(65 * CHAR_HEIGHT + 0)  := "00000000";
-        rom(65 * CHAR_HEIGHT + 1)  := "00010000";
-        rom(65 * CHAR_HEIGHT + 2)  := "00111000";
-        rom(65 * CHAR_HEIGHT + 3)  := "01101100";
-        rom(65 * CHAR_HEIGHT + 4)  := "11000110";
-        rom(65 * CHAR_HEIGHT + 5)  := "11000110";
-        rom(65 * CHAR_HEIGHT + 6)  := "11111110";
-        rom(65 * CHAR_HEIGHT + 7)  := "11000110";
-        rom(65 * CHAR_HEIGHT + 8)  := "11000110";
-        rom(65 * CHAR_HEIGHT + 9)  := "11000110";
-        rom(65 * CHAR_HEIGHT + 10) := "00000000";
-        rom(65 * CHAR_HEIGHT + 11) := "00000000";
-        rom(65 * CHAR_HEIGHT + 12) := "00000000";
-        rom(65 * CHAR_HEIGHT + 13) := "00000000";
-        rom(65 * CHAR_HEIGHT + 14) := "00000000";
-        rom(65 * CHAR_HEIGHT + 15) := "00000000";
+        -- ! (0x21 = 33)
+        rom(8)  := "00010000";
+        rom(9)  := "00010000";
+        rom(10) := "00010000";
+        rom(11) := "00010000";
+        rom(12) := "00000000";
+        rom(13) := "00010000";
+        rom(14) := "00000000";
+        rom(15) := "00000000";
         
-        -- Initialize other characters with a simple pattern
-        for char in 33 to 126 loop
-            if char /= 65 then -- Skip 'A' as it's already defined
-                for row in 0 to CHAR_HEIGHT-1 loop
-                    -- Simple pattern based on character code
-                    rom(char * CHAR_HEIGHT + row) := std_logic_vector(
-                        to_unsigned((char + row) mod 256, CHAR_WIDTH));
-                end loop;
-            end if;
+        -- Simple pattern for remaining characters (0x22-0x7F)
+        for char in 2 to 95 loop
+            for row in 0 to 7 loop
+                rom(char * 8 + row) := std_logic_vector(
+                    to_unsigned((char + row) mod 256, 8));
+            end loop;
         end loop;
         
         return rom;
@@ -142,11 +138,11 @@ architecture behavioral of vga_pattern_txt is
     
 begin
     
-    -- Calculate character position from pixel position
-    char_col <= pixel_x / CHAR_WIDTH when pixel_x < H_ACTIVE else 0;
-    char_row <= pixel_y / CHAR_HEIGHT when pixel_y < V_ACTIVE else 0;
+    -- Calculate character position from pixel position (scale to buffer size)
+    char_col <= (pixel_x / CHAR_WIDTH) / 2 when pixel_x < H_ACTIVE else 0;
+    char_row <= (pixel_y / 16) / 2 when pixel_y < V_ACTIVE else 0; -- Use 16 pixel height
     pixel_in_char_x <= pixel_x mod CHAR_WIDTH;
-    pixel_in_char_y <= pixel_y mod CHAR_HEIGHT;
+    pixel_in_char_y <= (pixel_y mod 16) / 2; -- Scale to 8 pixel font height
     
     -- UART Character Input Processing
     uart_input_process : process(clk)
@@ -164,13 +160,13 @@ begin
                 case uart_char is
                     when x"0A" => -- Line Feed (LF)
                         cursor_x <= 0;
-                        if cursor_y = TEXT_ROWS-1 then
+                        if cursor_y = BUFFER_ROWS-1 then
                             -- Scroll screen up
-                            for i in 0 to BUFFER_SIZE-TEXT_COLS-1 loop
-                                char_buffer(i) <= char_buffer(i + TEXT_COLS);
+                            for i in 0 to BUFFER_SIZE-BUFFER_COLS-1 loop
+                                char_buffer(i) <= char_buffer(i + BUFFER_COLS);
                             end loop;
                             -- Clear last line
-                            for i in BUFFER_SIZE-TEXT_COLS to BUFFER_SIZE-1 loop
+                            for i in BUFFER_SIZE-BUFFER_COLS to BUFFER_SIZE-1 loop
                                 char_buffer(i) <= x"20";
                             end loop;
                         else
@@ -183,29 +179,25 @@ begin
                     when x"08" => -- Backspace
                         if cursor_x > 0 then
                             cursor_x <= cursor_x - 1;
-                            buffer_addr := cursor_y * TEXT_COLS + cursor_x - 1;
+                            buffer_addr := cursor_y * BUFFER_COLS + cursor_x - 1;
                             char_buffer(buffer_addr) <= x"20";
                         end if;
-                        
-                    when x"7F" => -- Delete
-                        buffer_addr := cursor_y * TEXT_COLS + cursor_x;
-                        char_buffer(buffer_addr) <= x"20";
                         
                     when others => -- Printable characters
                         if uart_char >= x"20" and uart_char <= x"7E" then
                             -- Store character in buffer
-                            buffer_addr := cursor_y * TEXT_COLS + cursor_x;
+                            buffer_addr := cursor_y * BUFFER_COLS + cursor_x;
                             char_buffer(buffer_addr) <= uart_char;
                             
                             -- Advance cursor
-                            if cursor_x = TEXT_COLS-1 then
+                            if cursor_x = BUFFER_COLS-1 then
                                 cursor_x <= 0;
-                                if cursor_y = TEXT_ROWS-1 then
+                                if cursor_y = BUFFER_ROWS-1 then
                                     -- Scroll screen up
-                                    for i in 0 to BUFFER_SIZE-TEXT_COLS-1 loop
-                                        char_buffer(i) <= char_buffer(i + TEXT_COLS);
+                                    for i in 0 to BUFFER_SIZE-BUFFER_COLS-1 loop
+                                        char_buffer(i) <= char_buffer(i + BUFFER_COLS);
                                     end loop;
-                                    for i in BUFFER_SIZE-TEXT_COLS to BUFFER_SIZE-1 loop
+                                    for i in BUFFER_SIZE-BUFFER_COLS to BUFFER_SIZE-1 loop
                                         char_buffer(i) <= x"20";
                                     end loop;
                                 else
@@ -225,26 +217,30 @@ begin
     begin
         if rising_edge(clk) then
             if reset = '1' then
-                cursor_counter <= 0;
+                cursor_counter <= (others => '0');
                 cursor_blink <= '0';
             else
-                if cursor_counter = CURSOR_BLINK_PERIOD-1 then
-                    cursor_counter <= 0;
+                cursor_counter <= cursor_counter + 1;
+                -- Change cursor every ~0.67 seconds (25MHz / 2^24)
+                if cursor_counter(23) = '1' then
                     cursor_blink <= not cursor_blink;
-                else
-                    cursor_counter <= cursor_counter + 1;
+                    cursor_counter <= (others => '0');
                 end if;
             end if;
         end if;
     end process cursor_blink_process;
     
     -- Character and font data lookup
-    current_char <= char_buffer(char_row * TEXT_COLS + char_col) when 
-                   (char_row < TEXT_ROWS and char_col < TEXT_COLS) else x"20";
+    current_char <= char_buffer(char_row * BUFFER_COLS + char_col) when 
+                   (char_row < BUFFER_ROWS and char_col < BUFFER_COLS) else x"20";
     
-    font_addr <= to_integer(unsigned(current_char)) * CHAR_HEIGHT + pixel_in_char_y;
+    -- Map ASCII to font ROM address (subtract 32 for printable chars)
+    font_addr <= (to_integer(unsigned(current_char)) - 32) * 8 + pixel_in_char_y 
+                 when (unsigned(current_char) >= 32 and unsigned(current_char) <= 127) 
+                 else 0;
+    
     font_data <= font_rom(font_addr) when font_addr < FONT_ROM_SIZE else (others => '0');
-    pixel_bit <= font_data(CHAR_WIDTH-1 - pixel_in_char_x);
+    pixel_bit <= font_data(7 - pixel_in_char_x);
     
     -- Check if cursor is at current position
     cursor_at_position <= '1' when (char_col = cursor_x and char_row = cursor_y and

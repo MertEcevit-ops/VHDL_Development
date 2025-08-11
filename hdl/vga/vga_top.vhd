@@ -1,8 +1,7 @@
 ----------------------------------------------------------------------
--- Complete VGA Top Module for Basys3
--- Integrates: VGA Clock, Timing, Pattern Generator, Text Display, 
---            UART with FIFO, Seven Segment Display
--- Features: Dual mode VGA system with UART terminal capability
+-- BRAM Optimized VGA Top Module for Basys3
+-- Uses BRAM-based FIFOs to reduce LUT and FF usage
+-- Significantly improved resource utilization
 ----------------------------------------------------------------------
 
 library IEEE;
@@ -65,7 +64,7 @@ architecture behavioral of vga_top is
     signal rx_data       : std_logic_vector(7 downto 0);
     signal rx_empty      : std_logic;
     signal rx_full       : std_logic;
-    signal rx_count      : std_logic_vector(4 downto 0);
+    signal rx_count      : std_logic_vector(9 downto 0);  -- Updated for BRAM
     signal rx_error      : std_logic;
     
     -- UART TX signals
@@ -73,7 +72,7 @@ architecture behavioral of vga_top is
     signal tx_data       : std_logic_vector(7 downto 0);
     signal tx_full       : std_logic;
     signal tx_empty      : std_logic;
-    signal tx_count      : std_logic_vector(4 downto 0);
+    signal tx_count      : std_logic_vector(9 downto 0);  -- Updated for BRAM
     signal tx_busy       : std_logic;
     
     -- VGA Pattern Generator signals
@@ -193,10 +192,11 @@ architecture behavioral of vga_top is
         );
     end component;
     
+    -- BRAM-based UART components
     component uart_rx is
         generic (
             g_CLKS_PER_BIT : integer := 868;
-            FIFO_DEPTH     : integer := 16
+            FIFO_DEPTH     : integer := 256
         );
         port (
             i_clk       : in  std_logic;
@@ -206,7 +206,7 @@ architecture behavioral of vga_top is
             o_rx_data   : out std_logic_vector(7 downto 0);
             o_rx_empty  : out std_logic;
             o_rx_full   : out std_logic;
-            o_rx_count  : out std_logic_vector(4 downto 0);
+            o_rx_count  : out std_logic_vector(9 downto 0);
             o_rx_error  : out std_logic
         );
     end component;
@@ -214,7 +214,7 @@ architecture behavioral of vga_top is
     component uart_tx is
         generic (
             g_CLKS_PER_BIT : integer := 868;
-            FIFO_DEPTH     : integer := 16
+            FIFO_DEPTH     : integer := 256
         );
         port (
             i_clk      : in  std_logic;
@@ -223,7 +223,7 @@ architecture behavioral of vga_top is
             i_tx_data  : in  std_logic_vector(7 downto 0);
             o_tx_full  : out std_logic;
             o_tx_empty : out std_logic;
-            o_tx_count : out std_logic_vector(4 downto 0);
+            o_tx_count : out std_logic_vector(9 downto 0);
             o_tx_line  : out std_logic;
             o_tx_busy  : out std_logic
         );
@@ -253,7 +253,7 @@ begin
     reset_n <= reset_sync(2);
     sys_reset <= not reset_n;
     
-    -- VGA Clock Generator
+    -- VGA Clock Generator (Use simplified version)
     vga_clock_inst : vga_clock
         generic map (
             SYS_CLK_FREQ   => 100_000_000,
@@ -314,15 +314,15 @@ begin
             blue        => pattern_blue
         );
     
-    -- VGA Text Display Generator
+    -- VGA Text Display Generator (Use simplified version)
     vga_text_inst : vga_pattern_txt
         generic map (
             H_ACTIVE            => 640,
             V_ACTIVE            => 480,
             CHAR_WIDTH          => 8,
             CHAR_HEIGHT         => 16,
-            TEXT_COLS           => 80,
-            TEXT_ROWS           => 30,
+            TEXT_COLS           => 40,  -- Reduced from 80
+            TEXT_ROWS           => 15,  -- Reduced from 30
             COLOR_DEPTH         => 12,
             CURSOR_BLINK_PERIOD => 25_000_000
         )
@@ -342,11 +342,11 @@ begin
             blue            => text_blue
         );
     
-    -- UART RX with FIFO
+    -- BRAM-based UART RX
     uart_rx_inst : uart_rx
         generic map (
             g_CLKS_PER_BIT => CLKS_PER_BIT,
-            FIFO_DEPTH     => 32
+            FIFO_DEPTH     => 256  -- BRAM friendly size
         )
         port map (
             i_clk       => clk,
@@ -360,11 +360,11 @@ begin
             o_rx_error  => rx_error
         );
     
-    -- UART TX with FIFO
+    -- BRAM-based UART TX
     uart_tx_inst : uart_tx
         generic map (
             g_CLKS_PER_BIT => CLKS_PER_BIT,
-            FIFO_DEPTH     => 32
+            FIFO_DEPTH     => 256  -- BRAM friendly size
         )
         port map (
             i_clk      => clk,
