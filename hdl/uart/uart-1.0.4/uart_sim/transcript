@@ -1,0 +1,91 @@
+# vcom -work work -93 -explicit -check_synthesis -vopt -stats=none {C:/Disk/VHDLwhiz/Products/Membership/Resources/Example designs/UART/uart/uart_src/uart_rx.vhd}
+# Questa Intel Starter FPGA Edition-64 vcom 2021.2 Compiler 2021.04 Apr 14 2021
+# -- Loading package STANDARD
+# -- Loading package TEXTIO
+# -- Loading package std_logic_1164
+# -- Loading package NUMERIC_STD
+# -- Compiling entity uart_rx
+# -- Compiling architecture rtl of uart_rx
+# 
+# 
+# vcom -work work -93 -explicit -check_synthesis -vopt -stats=none {C:/Disk/VHDLwhiz/Products/Membership/Resources/Example designs/UART/uart/uart_src/uart_tx.vhd}
+# Questa Intel Starter FPGA Edition-64 vcom 2021.2 Compiler 2021.04 Apr 14 2021
+# -- Loading package STANDARD
+# -- Loading package TEXTIO
+# -- Loading package std_logic_1164
+# -- Loading package NUMERIC_STD
+# -- Compiling entity uart_tx
+# -- Compiling architecture rtl of uart_tx
+# 
+# 
+# vcom -work work -2008 -explicit -vopt -stats=none {C:/Disk/VHDLwhiz/Products/Membership/Resources/Example designs/UART/uart/uart_src/axi_fifo.vhd}
+# Questa Intel Starter FPGA Edition-64 vcom 2021.2 Compiler 2021.04 Apr 14 2021
+# -- Loading package STANDARD
+# -- Loading package TEXTIO
+# -- Loading package std_logic_1164
+# -- Loading package NUMERIC_STD
+# -- Compiling entity axi_fifo
+# -- Compiling architecture rtl of axi_fifo
+# 
+# 
+# vcom -work work -2002 -explicit -check_synthesis -vopt -stats=none {C:/Disk/VHDLwhiz/Products/Membership/Resources/Example designs/UART/uart/uart_src/uart_buffered.vhd}
+# Questa Intel Starter FPGA Edition-64 vcom 2021.2 Compiler 2021.04 Apr 14 2021
+# -- Loading package STANDARD
+# -- Loading package TEXTIO
+# -- Loading package std_logic_1164
+# -- Loading package NUMERIC_STD
+# -- Compiling entity uart_buffered
+# -- Compiling architecture rtl of uart_buffered
+# -- Loading entity uart_rx
+# -- Loading entity axi_fifo
+# -- Loading entity uart_tx
+# 
+# 
+# vcom -work work -2008 -explicit -vopt -stats=none {C:/Disk/VHDLwhiz/Products/Membership/Resources/Example designs/UART/uart/uart_sim/uart_tb.vhd}
+# Questa Intel Starter FPGA Edition-64 vcom 2021.2 Compiler 2021.04 Apr 14 2021
+# -- Loading package STANDARD
+# -- Loading package TEXTIO
+# -- Loading package std_logic_1164
+# -- Loading package NUMERIC_STD
+# -- Loading package MATH_REAL
+# -- Loading package ENV
+# -- Compiling entity uart_tb
+# -- Compiling architecture sim of uart_tb
+# -- Loading entity uart_buffered
+# 
+# 
+# 5 compiles, 0 failed with no errors.
+# ***************************************************************
+# *                                                             *
+# * Thank you for downloading this example from VHDLwhiz.com    *
+# *                                                             *
+# * Type "runtb" in the ModelSim console to run the testbench   *
+# *                                                             *
+# * Like this:                                                  *
+# *                                                             *
+# * ModelSim> runtb                                             *
+# *                                                             *
+# ***************************************************************
+runtb
+# vsim -onfinish stop -voptargs="+acc" work.uart_tb 
+# Start time: 11:45:50 on May 18,2023
+# ** Note: (vsim-3813) Design is being optimized due to module recompilation...
+# Loading std.standard
+# Loading std.textio(body)
+# Loading ieee.std_logic_1164(body)
+# Loading ieee.numeric_std(body)
+# Loading ieee.math_real(body)
+# Loading std.env(body)
+# Loading work.uart_tb(sim)#1
+# Loading work.uart_buffered(rtl)#1
+# Loading work.uart_rx(rtl)#1
+# Loading work.axi_fifo(rtl)#1
+# Loading work.uart_tx(rtl)#1
+# 0 ns                Releasing reset
+# 120 ns              Sending 256 random bytes
+# 2680 ns             Expecting to receive 256 bytes
+# 22219230 ns         All bytes received
+# 22219230 ns         Test: OK
+# Break in Process SEQUENCER_PROC at C:/Disk/VHDLwhiz/Products/Membership/Resources/Example designs/UART/uart/uart_sim/uart_tb.vhd line 144
+# End time: 11:46:56 on May 18,2023, Elapsed time: 0:01:06
+# Errors: 0, Warnings: 3

@@ -1,0 +1,24 @@
+************
+* To run the demo testbench in ModelSim/Questa:
+
+1. Extract the Zip file
+
+2. Start ModelSim
+
+3. Type in the ModelSim console:
+    do PATH_TO_EXTRACTED_FILES/run.do
+
+4. Follow the instructions in the ModelSim console
+    (type "runtb" to run the testbench)
+
+************
+* To test the UART loopback design on the Lattice iCEstick FPGA board:
+
+1 . Open the loopback_demo/diamond_programmer_project.xcf project file
+    in the Lattice Programmer tool (https://www.latticesemi.com/programmer).
+    This will load the settings for the iCEstick.
+
+2. Click the "File Name" column and select the
+    loopback_demo/loopback_demo_icestick_bitmap.bin file
+
+3. Click Program while the iCEstick is plugged in to the USB port
